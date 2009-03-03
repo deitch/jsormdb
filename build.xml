@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<!-- build file for jsormdb project -->
+<!-- Created by: Avi Deitcher &lt;avi@jsorm.com&gt;  -->
+
+<project name="jsormdb" default="all" basedir=".">
+  <property name="src" value="./src"/>
+  <property name="build" value="./build"/>
+  <property name="dist" value="./dist"/>
+  <property name="sample" value="./sample"/>
+  <property name="license" value="./license.js"/>
+  <property name="jsorm-base" value="../jsormutil/dist/jsorm-1.0-min-nolicense.js"/>
+  <property name="compile.debug"       value="true"/>
+  <property name="basename" value="jsormdb"/>
+  <property name="doc" value="${build}/doc"/>
+  <property name="privatedoc" value="${doc}/private"/>
+  <property name="jsdochome" value="/Users/adeitcher/Documents/Development/JavaScript/jsdoc_toolkit-2.1.0"/>
+  <property name="jsdoct" value="${jsdochome}/templates"/>
+  <property name="jsdoc" value="${user.home}/bin/jsdoc"/>
+  <property name="testhtml" value="test/test.html"/>
+
+  <property name="version" value="1.0"/>
+
+<taskdef name="jsmin"
+        classname="net.matthaynes.jsmin.JSMin_Task"
+        classpath="/Library/Java/lib/jsmin.0.2.2a.jar"/>
+
+<scriptdef name="jslint"
+        src="/Users/adeitcher/Documents/Development/js/jslint/jslintant.js"
+        language="javascript">
+    <attribute name="options"/>
+    <element name="fileset" type="fileset"/>
+</scriptdef>
+
+
+<!-- 
+Build all Java source files into destdir.  This is common in Java
+projects: the compile target is trivial, since it just says to build
+everything.  Fancier compiler targets are easy if you want to build
+just one file at a time.
+ -->
+	<target name="cleanbuild" depends="clean,build">
+	</target>
+	
+    <target name="build" depends="init">
+		<!-- combine the files into build/ and minify -->
+		<concat destfile="${build}/${basename}-src.js">
+			<fileset file="${license}"/>
+			<fileset file="${jsorm-base}"/>
+			<fileset dir="${src}" includes="*.js" excludes="XmlParser.js" casesensitive="false"/>
+		</concat>
+		<jsmin destdir="${build}" srcfile="${build}/${basename}-src.js" destfile="${basename}-min.js">
+		</jsmin>	
+
+		<!-- Make sure minified file includes the license -->
+		<concat destfile="${build}/${basename}.js">
+			<fileset file="${src}/00license.js"/>
+			<fileset file="${build}/${basename}-min.js"/>
+		</concat>
+		<delete file="${build}/${basename}-min.js"/>
+
+		<!-- include version in file -->
+		<replace file="${build}/${basename}.js" token="@@version@@" value="${version}"/>		
+		<replace file="${build}/${basename}-src.js" token="@@version@@" value="${version}"/>		
+
+		<!-- Include the library in the sample directory -->
+		<copy file="${build}/${basename}.js" todir="${sample}"/>	
+		<copy file="${build}/${basename}-src.js" todir="${sample}"/>	
+    </target>
+
+	<target name="dist" depends="build,doc">
+		<!-- zip together the relevant files build/, README.txt, sample/ -->
+		<zip destfile="${dist}/${basename}-${version}.zip">
+			<fileset dir="${build}"/>
+			<fileset dir="." includes="README.txt"/>
+ 			<fileset dir="." includes="license.txt"/>
+ 			<fileset dir="." includes="changelog.txt"/>
+		</zip>
+	</target>
+
+	<target name="all" depends="dist">
+			
+	</target>
+
+	<target name="test">
+		<jslint options="{passfail: false, browser: true}">
+			<fileset dir="${src}" includes="*.js" excludes="SecureStore.js"/>
+		</jslint>
+	</target>
+
+	<target name="privatedoc">
+		<exec executable="${jsdoc}">
+			<env key="JSDOCDIR" value="${jsdochome}"/>
+			<arg value="-d=${privatedoc}"/>
+			<arg value="-t=${jsdoct}/jsdoc"/>
+			<arg value="-p"/>
+			<arg value="-r=4"/>
+			<arg value="${src}"/>
+		</exec>
+	</target>
+
+	<target name="doc">
+		<copy todir="${build}">
+		    <fileset dir="." includes="README.txt"/>
+		  </copy>		
+		<exec executable="${jsdoc}">
+			<env key="JSDOCDIR" value="${jsdochome}"/>
+			<arg value="-t=${jsdoct}/jsdoc"/>
+			<arg value="-d=${doc}"/>
+			<arg value="-r=4"/>
+			<arg value="${src}"/>
+		</exec>
+	</target>
+
+	<target name="alldoc" depends="doc,privatedoc">
+	</target>
+
+
+	
+	
+<!--
+init is a target that sets things up for the build.  Since we use the
+built-in ant function mkdir, it will only make the directory if it
+does not already exist.
+-->
+  <target name="init">
+    <mkdir dir="${build}"/>
+	<mkdir dir="${dist}"/>
+  </target>
+
+
+<!--
+Always include a clean target to get rid of all the extra files
+created by the build process, so you can save storage safely, without
+thinking.  Also: sometimes you'll want to do a completely fresh build,
+such as when changing to a new version of the JDK.
+-->
+  <target name="clean" description="Removes previous build">
+    <delete verbose="true">
+		<fileset dir="${build}"/>
+	    <fileset dir="${dist}"/>
+		<fileset dir="${sample}" includes="${basename}.js,${basename}-src.js" />
+	</delete>
+  </target>
+
+</project>
+
