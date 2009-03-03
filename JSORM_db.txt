@@ -1,0 +1,224 @@
+How must jsorm db behave?
+
+This is an object-oriented database. Any changes to any data must be properly captured.
+
+1) Construction
+
+2) Inserting records
+- raw data
+- via a proxy from somewhere else
+
+- distinguish between appending new records and wiping clean
+
+3) Removing records
+- subset of records
+- wiping the entire database clean
+
+4) Reading records
+- query by any field
+- sort by any field, sort by function
+
+5) Updating records
+- update option
+
+6) Transactions
+- commit - all changes since the last commit/reject/start
+- reject - reject changes since the last commit/reject/start
+- reject - reject multiple individual changes in the transaction
+
+- commit requires the ability to push records back to a persistent store somewhere else via the proxy
+
+What functions do we need to provide this?
+- constructor: var db = JSORM.db.db(config);
+- destructor: db.destroy() (should be called automatically)
+- event management: on(event, method, params), off(event, method, params), events(events), unevents(events)
+- transactions: commit(options), reject(count)
+- read: find(query, sort)
+- insert: insert(data, append) for journaled insert, load(options) for new tx and load via proxy
+- delete: remove(), removeAll()
+- update: SQL: update(update, where)
+
+How to update existing data?
+---------------------------
+Classic databases (RDBMS and ODBMS) all assume you will use update(). Put in other terms, when the database returns
+data to a requestor, it returns a *copy* of the data in the database. To manipulate that data, the requestor needs
+ to do an update(). ExtJS's Ext.data.Store, whose extension was the original impetus for this project, 
+keeps special objects in the Store, known as Ext.data.Record. These actual records are passed out to the requestor,
+but have methods to manipulate the data. When the data is changed, the changes are sent to the Store.
+
+Either way, some special call is necessary to change the data. Neither method returns *just* the actual raw data. If so,
+changes to the data would not be tracked in the database itself. Either way, a special call to update - either on the
+returned object or on the database itself - is required. As such, there is no advantage to returning special
+objects, and a copy of the raw data should be returned. This also fits with how almost all real-world databases - RDBMS
+and ODBMS - work, and will be familiar to most developers.
+
+The only disadvantage is that each update requires a search in the database. If the database can handle random-access in
+fixed time (e.g. update where id=xxx) is fixed no matter where in the table the record is, then this is equally efficient.
+However, if the database cannot do so, and must do a linear search each time, then returning an actual specialized record
+pointer makes more sense; it will dispense with the where clause during the update. 
+
+The question then becomes, is it possible to make the database have a fixed, low-cost search time for indexed searches
+(where id=xxx)? Essentially, you would need one field to be indexed, such that we would always know exactly where in the array
+of data it sits. Thus, the index for the table would be a mapping of the index key value to the row in the table.
+
+
+Queries
+-------
+A query is a single search term. A term is either a primitives or a compound.
+1) Primitives are matches on a field, e.g. Name equals Smith. Primitives may also have a modifier that changes it, e.g. not.
+The following are the primitive operators:
+- equals - field exactly matches a parameter - value must match type of field
+- in - field exactly matches one of a series of parameters - value must be an array that matches type of field
+- gt - field is numeric and is greater than a parameter - value must be numeric
+- ge - field is numeric and is greater than or equal to a parameter - value must be numeric
+- lt - field is numeric and is less than a parameter - value must be numeric
+- le - field is numeric and is less than or equal to a parameter - value must be numeric
+- starts - field is a string and starts with a parameter - value must be a string
+- ends - field is a string and ends with a parameter - value must be a string
+- contains - field is a string and contains a parameter - value must be a string
+- isnull - the field is null (shorthand for 'equals null')
+- notnull - the field is not null (shorthand for 'not equals null')
+- not - negates any one of the primitive operations2) 
+2) Compounds are multiple terms (primitive and/or compound) joined together. They can be joined in one of two ways:
+- and - all terms must be true
+- or - one of the terms must be true
+
+The entire structure is an object literal (JSON). Compounds are literals. Each primitive is a literal. 
+Sample primitives:
+{field: age, compare: in, value: [1,2,3]}
+{field: name, compare: equals, value: "Smith"}
+{field: county, not: true, compare: in, value: ["England","Australia"]}
+
+Sample compounds:
+{join: and, terms: [compound, primitive, primitive]}
+{join: or, terms: [primitive, primitive, primitive]}
+
+Complete search term example. This will find every entry that has a (name of Smith or is over 18) AND lives in one of
+Canada or India but not Quebec
+{join: and, terms: [{join: or, terms: [{field: name, compare: equals, value: Smith},{field: age, compare: ge, value: 18}]},
+                    {field: country, compare: in, value: ["Canada","India"]},
+					{field: province, compare: equals, not: true, value: "Quebec"}]}
+
+To compare an entry with a search term, we need to ???
+1) Drill down to the lowest primitives
+2) Validate the primitive against the entry:
+	- if it does not match, return false
+	- if it does match, return true
+3) Validate compounds based on their primitives
+4) Essentially we are working our way from bottom to top, getting false/true for each primitive, then each compound,
+   until the entire search term is true or false
+
+Recursive vs. Iterative
+-----------------------
+Unless the tree is very very deep and unbalanced, recursive seems to have a distinct time advantage. Run tests.html to see.
+
+Indexing
+--------
+Indexing is the process of hashing or otherwise providing random access with constant-time lookup for certain fields.
+Normally, to do a search for which record matches (e.g. where fieldA = 25), you would need to search linearly through all of
+the records in the table, a full-table scan. With indexing, a reference indicating that indexed fieldA has a value of 25
+at record #2678, and thus can instantly look it up. Normally, this is done with either some form of hashing or a search tree,
+either B-tree or B+tree. A B+tree only makes sense in the context of data stored on disk. A B-tree or hashing makes sense here.
+
+Indexing imposes a memory, CPU and, if kept on disk, disk space usage burden, primarily when adding, updating or removing records. 
+On the other hand, performance is significantly faster when a select is done. Unless the record collection is extremely small,
+indexing benefits generally outweigh costs.
+
+In order to implement indexing, we need to have an index. The index itself is an object. The keys to the object are two:
+{
+	meta: {data regarding the type of index} 
+	data: {field: {}, field: {},...,field: {}}
+}
+
+The contents of each field entry in the data is the type of index. For ease of use, we currently support hash only. 
+B-tree in the future. The key of each entry is the value of the field, the value of each entry is the row location in the 
+database. For example, if the third row is {name: John} and the fifth row is {name: Jill}, then the entry is
+	data: {name: {John: 3, Jill: 5}}
+To support non-unique indexes, the value can also be an array
+	data: {name: {John: [3,6], Jill: 5}}
+
+Query Processing
+----------------
+Query processing functions as follows. When a query is given to find(), the query is passed to constructQuery. constructQuery
+uses its own internal routine as well as getCompares() to create a single function(), which itself may have subfunctions. 
+The query function is passed a single record and reports if the record matches (true) or does not match (false) the record.
+Thus, "select * where a = 10" would return a function function(rec). When function(rec) is passed a single table
+record rec, and returns true or false.
+
+The problem with this strategy is that it is *only* good for a full-table scan. Indexed or partial work poorly. Thus,
+we need a better strategy. constructQuery will still return a function, but it will return a function that takes
+not a record, but two arguments: a table and an index. It will then return the list of matches. Thus, the function
+returned would be function(table,index) and would return [index0,index1,...,indexn] of all matching records.
+
+Writing Tx to a Channel
+-----------------------
+There are three modes to write a transaction to a channel:
+- replace: the entire data set is sent
+- update: changes (i.e. the journal) is sent
+- condensed: like update, but multiple changes on a single record are condensed into one. For example, if I first update
+   one field in a record, then another, a single change updating all of them occurs. Similarly, if you add then update then
+   remove a record, nothing gets sent, since no net change occurred
+
+In order to implement these, we need to take several activities and have several pieces of information. What we need depends
+on the write mode
+1) Replace: In replace mode, we do not need any special information. Quite simply, we just send a dump of the entire
+   data set, excluding indexes. The journal is not even used for the write.
+2) Update: In update mode, we need to send all of the journal entries. However, we need to provide enough information
+   about the updated or removed record to the recipient that the changes can be applied appropriately. Similarly, an
+   added record needs the actual data, as the indexes have local meaning only. The sent data is as follows:
+	add: the entire record added {type: add, data: {rec1}}
+	remove: the IDs of the removed records {type: remove, data: [id1,id2]} 
+	change: the ID of the changed record and the new information {type: change, data: {data: {name:"Jack"},id: id1}}
+	clear: just the clear statement {type: clear}
+3) Condensed: In condensed mode, we not only need an ID or similar information to indicate to the recipient which records the
+   cumulative changes relate to. We also need that internally. When we condense, we need to know which record two different 
+   changes in the journal relate to. 
+
+Response from a Channel
+-----------------------
+In the case of update or condensed, we may need to take activity based on the response from a channel. For example,
+a newly added record may receive an authoritative ID from the server. As well, we may receive new records from the server,
+and we may receive additional information about updated records.
+
+Journal Structure
+-----------------
+Each action taken on the database results in a journal entry. Single actions that affect multiple records result
+in a single entry. Thus, for example, updating 10 records at once means a single journal entry.
+
+The structure of each entry in the journal is as follows. Each entry is a JS object. Every entry has a type, one of the following.
+{type: change/add/remove/clear/load}. Additionally, each entry also has a data entry, which contains the data that was
+added/remove/changed/etc. {data: changed_data}.
+
+The contents of the data field depend on the type of journal entry.
+1) add: data is an array of index of objects that were added.
+2) change: data is a single object with two fields: changed is an object with the new data alone; original is an array.
+ 			Each entry in the "original" array has two fields: index, which is the internal index of the record that was changed,
+ 			and data, which is an object representing the original values of those elements that changed. A typical structure is:
+			{
+			 type: change, 
+			 data: {
+					changed: {name: "Jack"}, 
+					original: [{index: 25, data: {name: "John"}},{index: 30, data: {name: "Jim"}}]
+					}
+			}
+3) remove: data is an array of objects that have been removed. 
+4) clear: data is an array containing the entire contents of the data store.
+
+JSON Parser
+-----------
+The json parser needs to parse json as sent via a channel or directly loaded, and translate it into objects. In addition to simple
+parsing, it needs to extract the objects out from a json structure (e.g. if it is embedded) and any metadata loaded with it. 
+
+There are several possibilities here:
+1) Minimalist: The data consumed is just a straight json array [{entry0},{entry1},...,{entryn}]. The upside is simplicity and 
+   consistency. The downside is that there is zero flexibility to work with different backend structures, as well as have the 
+   backend tell us about the data.
+2) Maximalist: The data consumed is any structure. However, in its root, it is expected to have two fields:
+   meta: an object containing meta information
+   root: the root of the data, which will simply be rows
+
+The maximalist position makes much more sense, although we can support he minimalist as well. The behaviour will be as follows:
+- if the json is an array, treat it as straight entries
+- if the json is an object and a property called "meta" exists, use that to get metadata, specifically the ID field and the root
+- if the json is an object and a property called "meta" does not exist, get meta from configuration of parser
+- if the json is an object and neither a property called "meta" exists nor is there configuration information, reject
