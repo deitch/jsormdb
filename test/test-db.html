@@ -1,0 +1,22 @@
+<html>
+	<head>
+		<title>Test Page for jsormdb</title>
+		<script src="../../yui_3.0.0.pr2/build/yui/yui-min.js" type="text/javascript"></script> 
+		<script src="../build/jsormdb-src.js"></script>
+		<script src="test-db.js"></script>
+		<script type="text/javascript">
+			function go() {
+				var local = true;
+				var conf = {
+					base: '../../yui_3.0.0.pr2/build/'
+				};
+				YUI(local?conf:null).use("yuitest","console",doTest);				
+			}
+			go();
+		</script>
+	</head>
+	<body>
+		<h1>Database Tests</h1>
+		<div id="results"></div>
+	</body>
+</html>
