@@ -1,0 +1,6 @@
+{
+	"meta": {"root": "root", "id":"uid"},
+	"root":
+		[{"name": "Karl", "age": 55},{"name": "Kara", "age": 60},{"name": "Kris", "age": 65}]
+	}
+

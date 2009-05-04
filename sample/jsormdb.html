@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 TRANSITIONAL//EN">
+<html>
+	<!-- Copyright (c) Atomic Inc. 2009 http://jsorm.com -->
+	<head>
+		<title>jsormdb Sample</title>
+		<style>
+			#content {
+				position: absolute;
+				left: 5%;
+				top: 10%;
+				width: 75%;
+				height: 300px;
+			}	
+			.grid-cell {
+				float: left;
+				width: 45%;
+				height: 100%;
+				border: 1px solid;
+				margin: 5px;
+				padding: 5px;
+			}	
+			.output {
+				padding: 5px;
+			}
+			
+		</style>
+		<script type="text/javascript" src="jquery-1.3.2.min.js"></script>
+		<script type="text/javascript" src="json2.js"></script>
+		<script type="text/javascript" src="jsormdb-src.js"></script>
+		<script type="text/javascript" src="jsormdb-sample.js"></script>
+		<script type="text/javascript">
+			$(document).ready(function(){
+				var buttons = ['load','change','commit','reject'];
+				var i,len;
+				var enable = function(db,enabled) {
+					var i,len;
+					for (i=0,len=buttons.length;i<len;i++) {
+						if (enabled[buttons[i]]) {
+							$('#'+buttons[i]+db).removeAttr('disabled');
+							$('#'+buttons[i]+db).show();
+						} else {
+							$('#'+buttons[i]+db).attr('disabled',true);
+							$('#'+buttons[i]+db).hide();
+						}
+					}
+				};
+				var display = function(id) {
+					var db = SAMPLE["getDb"+id]();
+					$("#db"+id+ " .output-data").html(JSON.stringify(db.find()));
+				};
+				
+				for (i=1;i<=2;i++) {
+					(function(db){
+						// handlers for the buttons
+						$("#load"+db).click(function(event){SAMPLE["loadDb"+db]();event.preventDefault();});
+						$("#change"+db).click(function(event){
+							SAMPLE["changeDb"+db]();
+							enable(db,{'commit':true,'reject':true});
+							display(db);
+							event.preventDefault();
+						});
+						$("#commit"+db).click(function(event){
+							SAMPLE["commitDb"+db]();
+							enable(db,{'load':true});
+							display(db);
+							event.preventDefault();
+						});
+						$("#reject"+db).click(function(event){
+							SAMPLE["rejectDb"+db]();
+							enable(db,{'change':true});
+							display(db);
+							event.preventDefault();
+						});		
+
+						// handlers for load functions
+						SAMPLE["getDb"+db]().on('load',function(){
+							enable(db,{'change':true});
+							display(db);
+						});				
+
+						// start with only load
+						enable(db,{load: true});						
+					})(i);
+				}
+
+			});
+		</script>
+	</head>
+	<body>
+		<div id="content">
+			<div id="instructions">
+				This is the sample page for jsormdb. Be sure to examine the source code, which is unminified. All JavaScript is in
+				<a href="jsormdb-sample.js">jsormdb-sample.js</a>, except for UI controls, which are in this file. <p/>
+				
+				Note that this sample page includes jquery. This is needed for manipulating this sample page <u>only</u>
+				and has nothing to do with jsormdb itself. jsormdb has <b>no</b> dependencies (other than JavaScript, of 
+				course).<p/>
+
+				In this sample page, two databases are created. The first is loaded from raw data. 
+				The second is loaded from a remote server, 
+				using http, and processed via a JsonParser.
+				To each database, data is then added, removed and changed, and a
+				commit or reject can be performed.
+			</div>
+			<div id="db1" class="grid-cell">
+				<h2>Raw database</h2>
+				<div class="controls">
+					<input type="button" id="load1" value="Load"></input><br/>
+					<input type="button" id="change1" value="Change"></input><br/>
+					<input type="button" id="commit1" value="Commit"></input>
+					<input type="button" id="reject1" value="Reject"></input>
+				</div>
+				<div class="output">
+					<h4>Database Contents</h4>
+					<span class="output-data"></span>
+				</div>
+			</div>
+			<div id="db2" class="grid-cell">
+				<h2>Remote database</h2>
+				<div class="controls">
+					<input type="button" id="load2" value="Load"></input><br/>
+					<input type="button" id="change2" value="Change"></input><br/>
+					<input type="button" id="commit2" value="Commit"></input>
+					<input type="button" id="reject2" value="Reject"></input>
+				</div>
+				<div class="output">
+					<h4>Database Contents</h4>
+					<span class="output-data"></span>
+				</div>
+			</div>
+		</div>
+		<div>
+	</body>
+</html>
