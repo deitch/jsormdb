@@ -355,7 +355,7 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 		 */
 		clear : function() {
 			// clear out the data
-			data.clear();
+			JSORM.clear(data);
 			// clear out the index
 			index.clear();
 			// clear out the unused

@@ -108,7 +108,7 @@ JSORM.db.index.hash = JSORM.extend({},function(f) {
 			var i;
 			for (i in data) {
 				if (data.hasOwnProperty(i)) {
-					data[i].clear();
+					JSORM.clear(data[i]);
 				}
 			}
 		},

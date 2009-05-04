@@ -8,7 +8,7 @@
   <property name="dist" value="./dist"/>
   <property name="sample" value="./sample"/>
   <property name="license" value="./license.js"/>
-  <property name="jsorm-base" value="../jsormutil/dist/jsorm-1.0-min-nolicense.js"/>
+  <property name="jsorm-base" value="../jsormutil/dist/jsorm-1.1-min-nolicense.js"/>
   <property name="compile.debug"       value="true"/>
   <property name="basename" value="jsormdb"/>
   <property name="doc" value="${build}/doc"/>
@@ -18,7 +18,7 @@
   <property name="jsdoc" value="${user.home}/bin/jsdoc"/>
   <property name="testhtml" value="test/test.html"/>
 
-  <property name="version" value="1.0"/>
+  <property name="version" value="1.1"/>
 
 <taskdef name="jsmin"
         classname="net.matthaynes.jsmin.JSMin_Task"

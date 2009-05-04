@@ -112,7 +112,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		var e, sfcb, cb = args.callback, scope = args.scope || this;
 
 		// only clear and load if we successfully get and parse the data
-		if (args.succeeded && (parsed = parser.read(args.data))) {
+		if (args.success && (parsed = parser.read(args.response))) {
 			// attempt to load the new data
 			loadData(parsed);
 
@@ -121,10 +121,10 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 			processed = true;
 
 			// specific events
-			sfcb = args.success;
+			sfcb = options.success;
 			e = "load";
 		} else {
-			sfcb = args.failure;
+			sfcb = options.failure;
 			e = "loadexception";
 		}
 
@@ -445,11 +445,13 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		 * @param {Object} [args.options] Object with options to pass to the callback. 
 		 */
 		load : function(args) {
-			var params, tp = {data: args.data, callback: args.callback, success: args.success, failure: args.failure, 
+			args = args || {};
+			var params, tp = {callback: args.callback, success: args.success, failure: args.failure, 
 				scope: args.scope, options: args.options};
 			// need to insert full load from channel function, followed by loadCallback as an async callback
 			if (args.data) {
-				tp.succeeded = true;
+				tp.success = true;
+				tp.response = args.data;
 				fork({fn: loadCallback, arg: [tp], scope: this});
 			} else if (channel) {
 				// load asynchronously via the channel, with loadCallback as the callback
@@ -465,7 +467,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 				channel.load({params: params, scope: this, callback: loadCallback, options: tp});
 			} else {
 				// if no channel was defined, and we were not passed data, we cannot load
-				tp.succeeded = false;
+				tp.success = false;
 				fork({fn: loadCallback, arg: [tp], scope: this});				
 			}
 			return(this);
