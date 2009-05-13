@@ -9,9 +9,10 @@
  * @namespace Container for all engine components, and parent for included engines
  */
 JSORM.db.engine = function(){
-	var apply = JSORM.apply;
+	var apply = JSORM.apply, clone = JSORM.clone;
+	var compares, pass1, pass2, pass3, intersection, union, keysAsArray, isPrimitive, isCompound;
 	
-	var compares = {
+	compares = {
 		equals: function(name,val) {return(function(entry){return(entry[name]===val);});},
 		"in": function(name,val) {
 				var h, ret;
@@ -44,67 +45,247 @@ JSORM.db.engine = function(){
 		notnull: function(name,val) {return(function(entry){return(entry[name]!==null);});}
 	};	
 
-	/**
-	 * validate and construct the query term. An individual query *result* may return false, but
-	 * the query itself *must* be valid
-	 * 
-	 * @param {Object} where A standard query term, either composite or primitive
-	 * @private
-	 */
-	var constructQuery = function(where) {
-		var valid = false, q, q2, subquery, len, i, list;
-		if (where.hasOwnProperty('field')) {
-			if (where.field && typeof(where.field) === "string" && where.hasOwnProperty('compare') &&
-			 	compares.hasOwnProperty(where.compare) && where.hasOwnProperty("value") &&
-				(subquery = compares[where.compare](where.field,where.value))) {
-					// create a function that checks the record for a mtach
-					/** @ignore */
-					q = subquery;
-
-					// we got this far, it is valid
-					valid = true;
-				}
-		} else if (where.hasOwnProperty('join')) {
-			if ((where.join === "and" || where.join === "or") && 
-				where.hasOwnProperty("terms") && where.terms.isArray && where.terms.length > 0) {
-					list = [];
-					for (i=0, len=where.terms.length; i<len; i++) {
-						if ((q2 = constructQuery(where.terms[i]))) {list.push(q2);} 
-						else {return(null);}
-					}
-
-					// create a function that covers all of these, but make sure to do proper closure
-					/** @ignore */
-					q = function(subs,isand) {
-						return(function(record) {
-							var i, len, match;
-							// compound, join them all with appropriate term
-							for (i=0, len=subs.length; i<len; i++) {
-								match = subs[i](record);
-								// check each return, see if we add it or match it
-								// and: it must be in all
-								// or: it must be in one
-								// in "and" case, a single failure ruins the whole thing, just stop
-								// in "or" case, a single match does the whole thing, just stop
-								//if ((isand && !match) || (!isand && match)) {
-								if (isand !== match) {
-									break;										
-								}								
-							}
-							// return our match, either all or none
-							return(match);										
-						});
-					}(list,where.join==="and");
-					
-					// we got this far, it is valid
-					valid = true;
-				}
+	intersection = function() {
+		var result,i,len,o;
+		if (!arguments || arguments.length<1) {
+			result = {};
+		} else if (arguments.length == 1 && typeof(arguments[0]) === "object") {
+			result = arguments[0];
 		} else {
-			q = null;
+			result = arguments[0].isArray ? arguments[0].hasher() : arguments[0];
+			for (i=1,len=arguments.length;i<len;i++) {
+				o = arguments[i].isArray ? arguments[i].hasher() : arguments[i];
+				result = JSORM.common(result,o,true);
+			}
 		}
-		return(valid ? q : function(){return(null);});						
+		return(result);
 	};
 	
+	union = function() {
+		var result,i,len,o;
+		if (!arguments || arguments.length<1) {
+			result = {};
+		} else {
+			result = {};
+			for (i=0,len=arguments.length;i<len;i++) {
+				o = arguments[i].isArray ? arguments[i].hasher() : arguments[i];
+				result = JSORM.apply(result,o);
+			}					
+		}
+		return(result);
+	};
+	
+	keysAsArray = function(o) {
+		var i, r = [];
+		for (i in o) {
+			if (i && o.hasOwnProperty(i) && typeof(o[i]) !== "function") {r.push(i);}
+		}		
+		return(r);
+	};
+	
+	isPrimitive = function(where) {
+		return(where.hasOwnProperty('field') && where.field && typeof(where.field) === "string" &&
+			where.hasOwnProperty('compare') && where.compare && compares[where.compare] && 
+			where.hasOwnProperty("value"));
+	};
+	isCompound = function(where) {
+		return(where.hasOwnProperty("join") && (where.join === "and" || where.join === "or") && 
+				where.hasOwnProperty("terms") && where.terms.isArray);
+	};
+	
+	/**
+	 * First pass against the query tree. Attempts to match any primitive against the index.
+	 * 
+	 * @param {Object} where A standard query term, either composite or primitive
+	 * @param {Object} index The index
+	 * @return {Object} Results tree, where each primitive is either a function to pass a record or an array of result indexes
+	 * @private
+	 */
+	pass1 = function(where,index) {
+		// q is a function that returns null, unless it explicitly becomes valid
+		var r, r2, i, len, subm;
+		// is it a primitive?
+		if (isPrimitive(where)) {
+				// can we get a result from the index?
+				if ((subm = index.find(where)) !== null) {
+					r = subm;
+				} else {
+					// we cannot get from index, so create the function that will process any values
+					r = compares[where.compare](where.field,where.value);
+				}
+		} else if (isCompound(where)) {
+			// is it a compound?
+			r = {join: where.join, terms: [], fn: [], comps: []};
+			for (i=0, len=where.terms.length; i<len; i++) {
+				r2 = pass1(where.terms[i],index);
+				// determine if it is a list of indexes, or a function
+				if (r2.isArray) {
+					// indexes, so we merge appropriately
+					// if it is and, we want the union; if not, the intersection
+					r.terms.push(where.terms[i]);
+				} else if (typeof(r2) === "function"){
+					// function, so we keep each one
+					r.fn.push(r2);
+				} else {
+					// another compound
+					r.comps.push(r2);					
+				}
+			}
+		} else {
+			r = null;
+		}
+		return(r);						
+	};
+	
+	/**
+	 * Second pass against the query tree. Resolve any functions using the resultant intersections or all records
+	 * 
+	 * @param {Object} where A query tree, output of pass1(), where each primitive is a fn() or []
+	 * @param {}
+	 * @return {Object} Results tree, where each primitive is a set of indexes
+	 * @private
+	 */
+	pass2 = function(where,foreach) {
+		// q is a function that returns null, unless it explicitly becomes valid
+		var r = [], r2, r3, subquery, i, len, j, lenj, list, keeper;
+		
+		/*
+		 * How does this work? 
+		 * First, we distinguish between a compound and a primitive.
+		 * A- Primitive: 
+		 * 				- if it is an array, then that is the result set
+		 * 				- if it is a function, we pass each element in limit, or data if there is no limit, into the 
+		 * 					function and keep those that the function returns true
+		 * B- Compound
+		 * 		B1: join AND: 
+		 * 				1) take the intersection of any earlier terms
+		 * 				2) take those results, and feed each one into each function. Those for which every function returns 
+		 * 					true, we keep; others are discarded
+		 * 				3) take those results, and use them as a limit. Feed those as the limiting factor into 
+		 * 					each sub-compound
+		 * 			Any that survive all three steps are valid.
+		 * 		B2: join OR:
+		 * 				1) take the union of any earlier terms
+		 * 				2) take the limit, or the entire data set, and feed each one into each function. Those for which any
+		 * 					function returns true, we keep; others are discarded
+		 * 				3) take the limit, or the entire data set, and feed each one into each sub-compound. Union the results
+		 * 					of each compound into the total set.
+		 * 			Any that survive any one step are valid.
+		 */
+		
+		// is it a compound?
+		if (isCompound(where)) {
+			if (where.join === "and") {
+				// AND join - intersection
+				
+				// 1) if we had any where terms, further restrict
+				if (where.terms && where.terms.length>0) {
+					// first merge all of the previous terms
+					r2 = intersection.apply(this,where.terms);
+				}
+				
+				// 2) feed the matching function into foreach - keep only those that match every function
+				if (where.fn && where.fn.length > 0) {
+					// go through each one from before
+					r3 = foreach(function(record) {
+						// will we keep this?
+						keeper = true;
+						for (i=0,len=where.fn.length;i<len;i++) {
+							if (!where.fn[i](record)) {
+								// it did not match even one function, and we are doing intersection AND,
+								//  so skip entirely
+								keeper = false;
+								break;
+							}
+						}
+						return(keeper);
+					});
+					// if we already have results, limit it to those, else just hasher the output of foreach
+					r2 = r2 ? intersection(r2,r3) : r3.hasher();
+				}
+				
+				// intersection with any sub-compounds - must be limited to r2
+				if (where.comps && where.comps.length>0) {
+					for (i=0,len=where.comps.length;i<len;i++) {
+						// AND = intersection, therefore only those in both the sub-compound *and* 
+						//    the current r2 are kept.
+						r3 = pass2(where.comps[i],foreach);
+						// if we already have results, limit it to those, else just hasher the output of foreach
+						r2 = r2 ? intersection(r2,r3) : r3.hasher();
+					}
+				}
+
+			} else {
+				// OR join - union
+				
+				// take the limit (if any), else the entire data set as our starting point
+				// feed that into the first function
+				// the results of the first function are saved
+				// feed the limit (if any), else the entire data set into the second function 
+				// add those results to the results of the first function
+				// repeat for all of the functions
+				// results are all are the final set
+
+				// 1) use the limit or entire data set as a starting point
+
+				// union with the previous terms from the indexed output
+				if (where.terms && where.terms.length>0) {
+					r2 = union.apply(this,where.terms);
+				}
+				
+				
+				// 2) feed the function into foreach, adding the results to the final set
+				r3 = foreach(function(record){
+					var matched = false;
+					for (i=0,len=where.fn.length;i<len;i++) {
+						// go through each function; as soon as one is matched on this entry, keep it and go to next
+						//      index entry
+						if (where.fn[i](record)) {
+							matched = true; 
+							break;
+						}
+					}
+					return(matched);
+				});
+				r2 = r2 ? union(r2,r3) : r3.hasher();
+				
+				// 3) results are all of the final set, the union of the output of all functions, i.e. r2
+				
+				// union with any sub-compounds
+				if (where.comps && where.comps.length>0) {
+					for (i=0,len=where.comps.length;i<len;i++) {
+						if ((r3 = pass2(where.comps[i],foreach)) && r3.isArray) {
+							for (j=0,lenj=r3.length; j<lenj;j++) {
+								r2[r3[j]] = true;
+							}
+						}
+					}
+				}
+			}
+			// r2 now contains a hash, where each key is a valid index, and each value is true;
+			//  just turn it into an array in r
+			r = keysAsArray(r2);
+
+		} else {
+			// a primitive
+
+			// array, we just return as is
+			if (where.isArray) {
+				r = where;				
+			} else if (typeof(where) === "function"){
+				// function - we apply it to either the limit or all in data set
+				r = foreach(function(record){
+					return(where(record));
+				});
+			}
+		}
+
+		// we have now devolved an entire compound of primitives into a single array of indexes
+		//     which is precisely what we wanted
+		return(r);
+	};
+	
+
 	return /** @lends JSORM.db.engine  */{
 		/**
 		 * Construct a query function from a where statement that is suitable to testing each record in a table for 
@@ -114,9 +295,29 @@ JSORM.db.engine = function(){
 		 * @returns {Function} A function that takes a single javascript object, i.e. a table record, 
 		 *    as an argument and reports if it matches by returning a boolean: true or false
 		 */
-		constructQuery : function(where) {
-			return(where && typeof(where) === "object" ? constructQuery(where) : function() {return(true);});
-		}
+		executeQuery : function(where,index,foreach) {
+			var i, len, subm, match = [], idx, fn, results;
+
+			// if the where is blank, just return them all
+			if (!where) {
+				results = foreach(function(record){
+					return(true);
+				})
+			} else {
+				// three passes
+				// first pass: for each primitive, convert to results from index or function
+				//             for each compound, split terms of the compound into: compounds, results or functions
+				results = pass1(where,index);
+
+				// second pass: go through the tree, resolve each function by passing it the results of the intersection (AND)
+				//    or all of the records (OR) and mergin the results together
+				//  
+				results = pass2(results,foreach);				
+			}
+			
+			
+			return(results);		
+		}		
 	};
 	
 }();
@@ -128,7 +329,7 @@ JSORM.db.engine = function(){
  */
 JSORM.db.engine.array = JSORM.extend(JSORM.db.engine,function() {
 	this.type = "array";
-	var data = [];
+	var data = [], index = null;
 	var apply = JSORM.apply;
 
 	
@@ -257,22 +458,25 @@ JSORM.db.engine.array = JSORM.extend(JSORM.db.engine,function() {
 		 * @return {Integer[]} Array of indexes that match the query
 		 */
 		query : function(where,limit) {
-			var i, len, match = [], idx, fn;
-			// not indexed
-			fn = this.constructQuery(where);
-
-			// if a limited set of index entries was provided, use it
-			if (limit) {
-				for (i=0,len=limit.length;i<len;i++) {
-					idx = limit[i];
-					if (fn(data[idx])) {match.push(idx);}
+			// the looping function
+			var foreach = function(fn) {
+				var i, len, r = [];
+				if (limit && limit.isArray)  {
+					for (i=0,len=limit.length;i<len;i++) {
+						if (fn(data[limit[i]])) {
+							r.push(limit[i]);
+						}
+					}
+				} else {
+					for (i=0,len=data.length;i<len;i++) {
+						if (fn(data[i])) {
+							r.push(i);
+						}
+					}
 				}
-			} else {
-				// else full table scan
-				for (i=0,len=data.length; i<len; i++) {
-					if (fn(data[i])) {match.push(i);}
-				}
-			}
+				return(r);
+			};
+			return(this.executeQuery(where,index,foreach));
 		}
 	});
 		
@@ -384,7 +588,7 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 				ret = [];
 				for (i in data) {
 					if (i && typeof(i) !== "function" && typeof(data[i]) === "object") {ret.push(data[i]);}
-				};
+				}
 			} else if (idx && idx.isArray) {
 				ret = [];
 				for (i=0, len=idx.length; i<len; i++) {
@@ -455,28 +659,24 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 		 * @return {Object[]} Array of indexes that match the query
 		 */
 		query : function(where,limit) {
-			var i, len, subm, match = [], idx, fn;
-			// first see if we can get it from the index
-			if ((subm = index.find(where)) !== null) {
-				match = subm;
-			} else {
-				// not indexed
-				fn = this.constructQuery(where);
-				
-				// if a limited set of index entries was provided, use it
+			var foreach = function(fn) {
+				var i,len,r = [];
 				if (limit) {
 					for (i=0,len=limit.length;i<len;i++) {
-						idx = limit[i];
-						if (fn(data[idx])) {match.push(idx);}
+						if (fn(data[limit[i]])) {
+							r.push(limit[i]);
+						}
 					}
 				} else {
-					// else full table scan
 					for (i in data) {
-						if (i && typeof(data[i]) === "object" && fn(data[i])) {match.push(i);}
+						if (fn(data[i])) {
+							r.push(i);
+						}
 					}
 				}
-			}
-			return(match);		
+				return(r);
+			};
+			return(this.executeQuery(where,index,foreach));
 		}
 		
 	});

@@ -1,34 +1,34 @@
-var r, i;
-var initval = [{name:"John",age:25,uid:10},{name:"Jill",age:18,uid:11},{name:"Jack",age:60,uid:12},{name:"Jeri",age:45,uid:13},{name:"Jono",age:12,uid:14}];
-var newval = [{name:"Karl",age:25,uid:20},{name:"Kelly",age:18,uid:21},{name:"Kris",age:60,uid:22},{name:"Knute",age:45,uid:23},{name:"Kandy",age:12,uid:24}];
-var jsonO = '{\
-	"meta": {"root": "root", "id":"uid"},\
-	"root":\
-		[\
+
+function getTest(Y) {
+	var r, i;
+	var initval = [{name:"John",age:25,uid:10},{name:"Jill",age:18,uid:11},{name:"Jack",age:60,uid:12},{name:"Jeri",age:45,uid:13},{name:"Jono",age:12,uid:14}];
+	var newval = [{name:"Karl",age:25,uid:20},{name:"Kelly",age:18,uid:21},{name:"Kris",age:60,uid:22},{name:"Knute",age:45,uid:23},{name:"Kandy",age:12,uid:24}];
+	var jsonO = '{\
+		"meta": {"root": "root", "id":"uid"},\
+		"root":\
+			[\
+				{"name":"John","age":25, "uid": 10},\
+				{"name":"Jill","age":18, "uid": 11},\
+				{"name":"Jack","age":60, "uid": 12},\
+				{"name":"Jeri","age":45, "uid": 13},\
+				{"name":"Jono","age":12, "uid": 14}\
+			]\
+		}';
+	var jsonA = '[\
 			{"name":"John","age":25, "uid": 10},\
 			{"name":"Jill","age":18, "uid": 11},\
 			{"name":"Jack","age":60, "uid": 12},\
 			{"name":"Jeri","age":45, "uid": 13},\
 			{"name":"Jono","age":12, "uid": 14}\
-		]\
-	}';
-var jsonA = '[\
-		{"name":"John","age":25, "uid": 10},\
-		{"name":"Jill","age":18, "uid": 11},\
-		{"name":"Jack","age":60, "uid": 12},\
-		{"name":"Jeri","age":45, "uid": 13},\
-		{"name":"Jono","age":12, "uid": 14}\
-	]';
-var name = "Nicholas", age = 29;
+		]';
+	var name = "Nicholas", age = 29;
 
-
-function doTest(Y) {
-	var testCase = new Y.Test.Case({
+	return(new Y.Test.Case({
 		name: "jsormdb tests",
 		
 		createDbPlain : function(cb) {
 			var db = JSORM.db.db({parser: JSORM.db.parser.object()});
-			db.load({data: initval, callback: cb});
+			db.load({data: initval, callback: cb, index:'name'});
 			return(db);
 		},
 		
@@ -47,22 +47,22 @@ function doTest(Y) {
 		
 		_should: { 
 			ignore: { 
-				testIndex: true,
-				testJsonParser: true,
-				testHttpChannelLoadUrl: true,
-				testHttpChannelUrl: true,
-				testLoad: true,
-				testFind: true,
-				testUpdate: true,
-				testRemove: true,
-				testInsert: true,
-				testCommitNoChannel: true,
-				testCommitDoNothing: true,
-				testCommitReplace: true,
-				testCommitUpdate: true,
+				testIndex: false,
+				testJsonParser: false,
+				testHttpChannelLoadUrl: false,
+				testHttpChannelUrl: false,
+				testLoad: false,
+				testFind: false,
+				testUpdate: false,
+				testRemove: false,
+				testInsert: false,
+				testCommitNoChannel: false,
+				testCommitDoNothing: false,
+				testCommitReplace: false,
+				testCommitUpdate: false,
 				testCommitCondensed: false,
-				testRejectMultiple: true,
-				testRejectSingle: true
+				testRejectMultiple: false,
+				testRejectSingle: false
 			} 
 		}, 
 		
@@ -217,6 +217,8 @@ function doTest(Y) {
 					r = db.find({where: {join: "or", terms:[{field: "age", compare: "gt", value: 22},{field: "name", compare: "starts", value: "Ji"}]}});
 					Y.Assert.areEqual(4,r.length,"Number of entries where age > 22 OR name starts 'Ji'");
 					
+					r = db.find({where: {join: "or", terms:[{field: "age", compare: "gt", value: 22},{join: 'and', terms:[{field: "name", compare: "starts", value: "Ji"},{field:'age',compare:'equals',value:18}]}]}});
+					Y.Assert.areEqual(4,r.length,"Number of entries where age > 22 OR (name starts 'Ji' AND age == 18)");
 				});
 			}
 			db = this.createDbPlain(cb);
@@ -377,22 +379,5 @@ function doTest(Y) {
 		}
 
 		
-	});
-	
-	
-	Y.Test.Runner.add(testCase);
-	Y.config.useBrowserConsole = true;
-	/*
-	var yconsole = new Y.Console({ 
-		boundingBox: '#basic',
-		newestOnTop: false                    
-	}).render('#log');	
-	*/
-	Y.Test.Runner.run();	
+	}));
 }
-
-
-/*
- * BEGIN TESTS 
- */
-

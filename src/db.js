@@ -24,7 +24,8 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 	var journal = [], channel = config.channel || null, idField, myclass = this.myclass;
 	// updateMode, writeMode
 	var updateMode = config.updateMode || myclass.updates.nothing, writeMode = config.writeMode || myclass.modes.nothing;
-	var store = JSORM.db.engine.hash(JSORM.db.index.hash());
+	// we automatically use "type" as an indexed field
+	var store = JSORM.db.engine.hash(JSORM.db.index.hash("type"));
 	// default writeMode, updateMode
 	var defaultWriteMode = myclass.modes.nothing, defaultUpdateMode = myclass.updates.nothing;
 	// do we have a parser?
@@ -389,7 +390,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		 */
 		find : function(params) {
 			params = params || {};
-			var data = findInternal({where: params.where, fields: params.fields, from: params.from, index: false});
+			var data = findInternal({where: params.where, fields: params.fields, index: false});
 			return(data);
 		},
 
@@ -404,7 +405,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		update : function(params) {
 			var index, oldData, det = [], i, len, args = params || {}, id, idconf;
 			// first find the indexes of all the entries that match the where clause
-			index = findInternal({where: args.where, index: true, from: args.from});
+			index = findInternal({where: args.where, index: true});
 
 			// get the oldData and update the records
 			oldData = store.update(index,args.data);
@@ -482,7 +483,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		 */
 	    remove : function(params){
 			var args = params || {};
-	        var index = findInternal({where: args.where, from: args.from, index: true});
+	        var index = findInternal({where: args.where, index: true});
 			var removed = removeAt(index);
 			// mark the record itself as having been deleted, so we can know if we commit it
 			journal.push({type: myclass.types.remove, data: removed});

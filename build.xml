@@ -18,7 +18,7 @@
   <property name="jsdoc" value="${user.home}/bin/jsdoc"/>
   <property name="testhtml" value="test/test.html"/>
 
-  <property name="version" value="1.1"/>
+  <property name="version" value="1.2"/>
 
 <taskdef name="jsmin"
         classname="net.matthaynes.jsmin.JSMin_Task"
