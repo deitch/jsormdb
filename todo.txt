@@ -1,3 +1,0 @@
-Engine: direct connect to server-side, i.e. no channel or parser; REST
-Multi-table
-XML parser

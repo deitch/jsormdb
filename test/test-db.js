@@ -1,7 +1,18 @@
 
 function getTest(Y) {
 	var r, i;
-	var initval = [{name:"John",age:25,uid:10},{name:"Jill",age:18,uid:11},{name:"Jack",age:60,uid:12},{name:"Jeri",age:45,uid:13},{name:"Jono",age:12,uid:14}];
+	var initval = [
+			{name:"John",age:25,uid:10,type:'person'},
+			{name:"Jill",age:18,uid:11,type:'person'},
+			{name:"Jack",age:60,uid:12,type:'person'},
+			{name:"Jeri",age:45,uid:13,type:'person'},
+			{name:"Jono",age:12,uid:14,type:'person'},
+			{name:"Ferrari",age:10,type:'car'},
+			{name:"Ford",age:15,type:'car'},
+			{name:"Fiat",age:6,type:'car'},
+			{name:"Honda",age:3,type:'car'},
+			{name:"Toyota",age:7,type:'car'}
+		];
 	var newval = [{name:"Karl",age:25,uid:20},{name:"Kelly",age:18,uid:21},{name:"Kris",age:60,uid:22},{name:"Knute",age:45,uid:23},{name:"Kandy",age:12,uid:24}];
 	var jsonO = '{\
 		"meta": {"root": "root", "id":"uid"},\
@@ -197,10 +208,13 @@ function getTest(Y) {
 					Y.Assert.isUndefined(r[2].age,"Should not have other than name for age >= 25");
 
 					r = db.find({where: {field: "age", compare: "gt", value: 2}});
-					Y.Assert.areEqual(5,r.length,"Number of entries where age > 2");
+					Y.Assert.areEqual(10,r.length,"Number of entries where age > 2");
+
+					r = db.find({where: {field: "age", compare: "gt", value: 2,type:'person'}});
+					Y.Assert.areEqual(5,r.length,"Number of PERSON entries where age > 2");
 
 					r = db.find({where:{field: "age", compare: "gt", value: 2},fields:{age: true}});
-					Y.Assert.areEqual(5,r.length,"Number of entries where age > 2");
+					Y.Assert.areEqual(10,r.length,"Number of entries where age > 2");
 					Y.Assert.isNotUndefined(r[0].age,"Should have age for age >= 25");
 					Y.Assert.isNotUndefined(r[1].age,"Should have age for age >= 25");
 					Y.Assert.isNotUndefined(r[2].age,"Should have age for age >= 25");
@@ -209,7 +223,7 @@ function getTest(Y) {
 					Y.Assert.isUndefined(r[2].name,"Should not have other than age for age >= 25");
 
 					r = db.find({where:{join: "and", terms:[{field: "age", compare: "gt", value: 2}]}});
-					Y.Assert.areEqual(5,r.length,"Number of entries where age > 2 and an and term");
+					Y.Assert.areEqual(10,r.length,"Number of entries where age > 2 and an and term");
 
 					r = db.find({where: {join: "and", terms:[{field: "age", compare: "gt", value: 2},{field: "name", compare: "starts", value: "Jo"}]}});
 					Y.Assert.areEqual(2,r.length,"Number of entries where age > 2 AND name starts 'Jo'");
@@ -219,6 +233,9 @@ function getTest(Y) {
 					
 					r = db.find({where: {join: "or", terms:[{field: "age", compare: "gt", value: 22},{join: 'and', terms:[{field: "name", compare: "starts", value: "Ji"},{field:'age',compare:'equals',value:18}]}]}});
 					Y.Assert.areEqual(4,r.length,"Number of entries where age > 22 OR (name starts 'Ji' AND age == 18)");
+
+					r = db.find({where: {field: "age",compare:"notnull", type:"car"}});
+					Y.Assert.areEqual(5,r.length,"Number of entries where type = car");
 				});
 			}
 			db = this.createDbPlain(cb);
@@ -247,11 +264,11 @@ function getTest(Y) {
 				test.resume(function(){
 					db.remove({where: {field: "name", compare: "equals", value: "Jill"}});
 					r = db.find();
-					Y.Assert.areEqual(4,r.length,"Removed Jill, should have 4 records");
+					Y.Assert.areEqual(9,r.length,"Removed Jill, should have 9 records");
 
 					db.remove({where: {field: "name", compare: "equals", value: "Joshua"}});
 					r = db.find();
-					Y.Assert.areEqual(4,r.length,"Removed Joshua, should still have 4 records");
+					Y.Assert.areEqual(9,r.length,"Removed Joshua, should still have 9 records");
 				});
 			}
 			db = this.createDbPlain(cb);
@@ -264,7 +281,7 @@ function getTest(Y) {
 				test.resume(function(){
 					db.insert(newval);
 					r = db.find();
-					Y.Assert.areEqual(10,r.length,"Added newval without replace");
+					Y.Assert.areEqual(15,r.length,"Added newval without replace");
 
 					db.clear();
 					db.insert(newval);

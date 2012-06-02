@@ -94,6 +94,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		clearInternal(false);
 		idField = data.id || "id";
 		store.addIndex(idField);		
+		store.addIndex('type');
 		store.insert(r);
 		// clean out the journal
 		journal.clear();
@@ -632,6 +633,8 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 	
 	// were we told which fields to index?
 	store.addIndex(config.index);
+	// always index 'type'
+	store.addIndex('type');
 	
 	// did we have any data to start?
 	if (config.data) {

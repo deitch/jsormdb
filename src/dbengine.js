@@ -86,7 +86,7 @@ JSORM.db.engine = function(){
 	isPrimitive = function(where) {
 		return(where.hasOwnProperty('field') && where.field && typeof(where.field) === "string" &&
 			where.hasOwnProperty('compare') && where.compare && compares[where.compare] && 
-			where.hasOwnProperty("value"));
+			(where.hasOwnProperty("value") || where.compare === "isnull" || where.compare === "notnull"));
 	};
 	isCompound = function(where) {
 		return(where.hasOwnProperty("join") && (where.join === "and" || where.join === "or") && 
@@ -102,8 +102,8 @@ JSORM.db.engine = function(){
 	 * @private
 	 */
 	pass1 = function(where,index) {
-		// q is a function that returns null, unless it explicitly becomes valid
 		var r, r2, i, len, subm;
+
 		// is it a primitive?
 		if (isPrimitive(where)) {
 				// can we get a result from the index?
@@ -115,7 +115,8 @@ JSORM.db.engine = function(){
 				}
 		} else if (isCompound(where)) {
 			// is it a compound?
-			r = {join: where.join, terms: [], fn: [], comps: []};
+			r = {join: where.join, terms:[], fn:[],comps:[]}
+			if (where.type) {r.type = where.type};
 			for (i=0, len=where.terms.length; i<len; i++) {
 				r2 = pass1(where.terms[i],index);
 				// determine if it is a list of indexes, or a function
@@ -145,26 +146,20 @@ JSORM.db.engine = function(){
 	 * @return {Object} Results tree, where each primitive is a set of indexes
 	 * @private
 	 */
-	pass2 = function(where,foreach) {
+	pass2 = function(where,foreach,index,limit) {
 		// q is a function that returns null, unless it explicitly becomes valid
-		var r = [], r2, r3, subquery, i, len, j, lenj, list, keeper;
+		var r = [], r2, r3, subquery, i, len, j, lenj, list, keeper, typelimit;
 		
 		/*
-		 * How does this work? 
-		 * First, we distinguish between a compound and a primitive.
-		 * A- Primitive: 
-		 * 				- if it is an array, then that is the result set
-		 * 				- if it is a function, we pass each element in limit, or data if there is no limit, into the 
-		 * 					function and keep those that the function returns true
-		 * B- Compound
-		 * 		B1: join AND: 
+		 * How does this work? Everything passed will be like a compound.
+		 * 		A: join AND: 
 		 * 				1) take the intersection of any earlier terms
 		 * 				2) take those results, and feed each one into each function. Those for which every function returns 
 		 * 					true, we keep; others are discarded
 		 * 				3) take those results, and use them as a limit. Feed those as the limiting factor into 
 		 * 					each sub-compound
 		 * 			Any that survive all three steps are valid.
-		 * 		B2: join OR:
+		 * 		B: join OR:
 		 * 				1) take the union of any earlier terms
 		 * 				2) take the limit, or the entire data set, and feed each one into each function. Those for which any
 		 * 					function returns true, we keep; others are discarded
@@ -172,69 +167,74 @@ JSORM.db.engine = function(){
 		 * 					of each compound into the total set.
 		 * 			Any that survive any one step are valid.
 		 */
+		// is there a type limit?
+		if (where.type) {
+			typelimit = index.find({field:'type',compare:'equals',value:where.type});
+			limit = limit ? intersection(limit,typelimit) : typelimit.hasher();
+		}
 		
-		// is it a compound?
-		if (isCompound(where)) {
-			if (where.join === "and") {
-				// AND join - intersection
-				
-				// 1) if we had any where terms, further restrict
-				if (where.terms && where.terms.length>0) {
-					// first merge all of the previous terms
-					r2 = intersection.apply(this,where.terms);
-				}
-				
-				// 2) feed the matching function into foreach - keep only those that match every function
-				if (where.fn && where.fn.length > 0) {
-					// go through each one from before
-					r3 = foreach(function(record) {
-						// will we keep this?
-						keeper = true;
-						for (i=0,len=where.fn.length;i<len;i++) {
-							if (!where.fn[i](record)) {
-								// it did not match even one function, and we are doing intersection AND,
-								//  so skip entirely
-								keeper = false;
-								break;
-							}
+		if (where.join === "and") {
+			// AND join - intersection
+			
+			// was there any limit to start?
+			if (limit) {r2 = limit;}
+			
+			// 1) if we had any where terms, further restrict
+			if (where.terms && where.terms.length>0) {
+				// first merge all of the previous terms
+				r3 = intersection.apply(this,where.terms);
+				r2 = r2 ? intersection(r3,r2) : r3;
+			}
+			
+			// 2) feed the matching function into foreach - keep only those that match every function
+			if (where.fn && where.fn.length > 0) {
+				// go through each one from before
+				r2 = foreach(function(record) {
+					// will we keep this?
+					keeper = true;
+					for (i=0,len=where.fn.length;i<len;i++) {
+						if (!where.fn[i](record)) {
+							// it did not match even one function, and we are doing intersection AND,
+							//  so skip entirely
+							keeper = false;
+							break;
 						}
-						return(keeper);
-					});
-					// if we already have results, limit it to those, else just hasher the output of foreach
-					r2 = r2 ? intersection(r2,r3) : r3.hasher();
-				}
-				
-				// intersection with any sub-compounds - must be limited to r2
-				if (where.comps && where.comps.length>0) {
-					for (i=0,len=where.comps.length;i<len;i++) {
-						// AND = intersection, therefore only those in both the sub-compound *and* 
-						//    the current r2 are kept.
-						r3 = pass2(where.comps[i],foreach);
-						// if we already have results, limit it to those, else just hasher the output of foreach
-						r2 = r2 ? intersection(r2,r3) : r3.hasher();
 					}
+					return(keeper);
+				},r2?keysAsArray(r2):null);
+			}
+			
+			// intersection with any sub-compounds - must be limited to r2
+			if (where.comps && where.comps.length>0) {
+				for (i=0,len=where.comps.length;i<len;i++) {
+					// AND = intersection, therefore only those in both the sub-compound *and* 
+					//    the current r2 are kept.
+					r2 = pass2(where.comps[i],foreach,index,r2);
 				}
+			}
 
-			} else {
-				// OR join - union
-				
-				// take the limit (if any), else the entire data set as our starting point
-				// feed that into the first function
-				// the results of the first function are saved
-				// feed the limit (if any), else the entire data set into the second function 
-				// add those results to the results of the first function
-				// repeat for all of the functions
-				// results are all are the final set
+		} else {
+			// OR join - union
+			
+			// take the limit (if any), else the entire data set as our starting point
+			// feed that into the first function
+			// the results of the first function are saved
+			// feed the limit (if any), else the entire data set into the second function 
+			// add those results to the results of the first function
+			// repeat for all of the functions
+			// results are all are the final set
 
-				// 1) use the limit or entire data set as a starting point
+			// 1) use the limit or entire data set as a starting point
 
-				// union with the previous terms from the indexed output
-				if (where.terms && where.terms.length>0) {
-					r2 = union.apply(this,where.terms);
-				}
-				
-				
-				// 2) feed the function into foreach, adding the results to the final set
+			// union with the previous terms from the indexed output
+			if (where.terms.length>0) {
+				r2 = union.apply(this,where.terms);
+				r2 = limit ? intersection(r2,limit) : r2;
+			}
+			
+			
+			// 2) feed the function into foreach, adding the results to the final set
+			if (where.fn.length > 0) {
 				r3 = foreach(function(record){
 					var matched = false;
 					for (i=0,len=where.fn.length;i<len;i++) {
@@ -246,38 +246,29 @@ JSORM.db.engine = function(){
 						}
 					}
 					return(matched);
-				});
-				r2 = r2 ? union(r2,r3) : r3.hasher();
-				
-				// 3) results are all of the final set, the union of the output of all functions, i.e. r2
-				
-				// union with any sub-compounds
-				if (where.comps && where.comps.length>0) {
-					for (i=0,len=where.comps.length;i<len;i++) {
-						if ((r3 = pass2(where.comps[i],foreach)) && r3.isArray) {
-							for (j=0,lenj=r3.length; j<lenj;j++) {
-								r2[r3[j]] = true;
-							}
+				},limit);
+				r2 = r2 ? union(r2,r3) : r3.hasher();					
+			}
+			
+			// 3) results are all of the final set, the union of the output of all functions, i.e. r2
+			
+			// union with any sub-compounds
+			if (where.comps.length>0) {
+				for (i=0,len=where.comps.length;i<len;i++) {
+					if ((r3 = pass2(where.comps[i],foreach,index,limit)) && r3.isArray) {
+						for (j=0,lenj=r3.length; j<lenj;j++) {
+							r2[r3[j]] = true;
 						}
 					}
 				}
 			}
-			// r2 now contains a hash, where each key is a valid index, and each value is true;
-			//  just turn it into an array in r
-			r = keysAsArray(r2);
-
+		}
+		// r2 now contains a hash, where each key is a valid index, and each value is true;
+		//  just turn it into an array in r
+		if (r2) {
+			r = r2.isArray ? r2 : keysAsArray(r2);				
 		} else {
-			// a primitive
-
-			// array, we just return as is
-			if (where.isArray) {
-				r = where;				
-			} else if (typeof(where) === "function"){
-				// function - we apply it to either the limit or all in data set
-				r = foreach(function(record){
-					return(where(record));
-				});
-			}
+			r = [];
 		}
 
 		// we have now devolved an entire compound of primitives into a single array of indexes
@@ -296,15 +287,24 @@ JSORM.db.engine = function(){
 		 *    as an argument and reports if it matches by returning a boolean: true or false
 		 */
 		executeQuery : function(where,index,foreach) {
-			var i, len, subm, match = [], idx, fn, results;
+			var i, len, subm, match = [], idx, fn, results, tmp;
 
 			// if the where is blank, just return them all
 			if (!where) {
 				results = foreach(function(record){
 					return(true);
-				})
+				});
 			} else {
-				// three passes
+				// before we do it, the root of our tree must always be a compound
+				if (isPrimitive(where)) {
+					tmp = {join:'and'};
+					if (where.type) {tmp.type = where.type;}
+					delete where.type;
+					tmp.terms = [where];
+					where = tmp;
+				}
+				
+				// two passes
 				// first pass: for each primitive, convert to results from index or function
 				//             for each compound, split terms of the compound into: compounds, results or functions
 				results = pass1(where,index);
@@ -312,7 +312,7 @@ JSORM.db.engine = function(){
 				// second pass: go through the tree, resolve each function by passing it the results of the intersection (AND)
 				//    or all of the records (OR) and mergin the results together
 				//  
-				results = pass2(results,foreach);				
+				results = pass2(results,foreach,index);				
 			}
 			
 			
@@ -331,6 +331,24 @@ JSORM.db.engine.array = JSORM.extend(JSORM.db.engine,function() {
 	this.type = "array";
 	var data = [], index = null;
 	var apply = JSORM.apply;
+	// the looping function
+	var foreach = function(fn,limit) {
+		var i, len, r = [];
+		if (limit && limit.isArray)  {
+			for (i=0,len=limit.length;i<len;i++) {
+				if (fn(data[limit[i]])) {
+					r.push(limit[i]);
+				}
+			}
+		} else {
+			for (i=0,len=data.length;i<len;i++) {
+				if (fn(data[i])) {
+					r.push(i);
+				}
+			}
+		}
+		return(r);			
+	};
 
 	
 	
@@ -457,25 +475,7 @@ JSORM.db.engine.array = JSORM.extend(JSORM.db.engine,function() {
 		 * @param {Integer[]} limit List of indexes to check for a match. If blank, will check all entries.
 		 * @return {Integer[]} Array of indexes that match the query
 		 */
-		query : function(where,limit) {
-			// the looping function
-			var foreach = function(fn) {
-				var i, len, r = [];
-				if (limit && limit.isArray)  {
-					for (i=0,len=limit.length;i<len;i++) {
-						if (fn(data[limit[i]])) {
-							r.push(limit[i]);
-						}
-					}
-				} else {
-					for (i=0,len=data.length;i<len;i++) {
-						if (fn(data[i])) {
-							r.push(i);
-						}
-					}
-				}
-				return(r);
-			};
+		query : function(where) {
 			return(this.executeQuery(where,index,foreach));
 		}
 	});
@@ -496,6 +496,24 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 	var data = {}, length = 0, max = 0, unused = [];
 	var apply = JSORM.apply; 
 	index = index || JSORM.db.index.hash();
+
+	var foreach = function(fn,limit) {
+		var i,len,r = [];
+		if (limit) {
+			for (i=0,len=limit.length;i<len;i++) {
+				if (fn(data[limit[i]])) {
+					r.push(limit[i]);
+				}
+			}
+		} else {
+			for (i in data) {
+				if (fn(data[i])) {
+					r.push(i);
+				}
+			}
+		}
+		return(r);
+	};
 
 	apply(this,/** lends JSORM.db.engine.hash.prototype */{
 		/**
@@ -658,24 +676,7 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 		 * @param {Object[]} limit List of indexes to check for a match. If blank, will check all entries.
 		 * @return {Object[]} Array of indexes that match the query
 		 */
-		query : function(where,limit) {
-			var foreach = function(fn) {
-				var i,len,r = [];
-				if (limit) {
-					for (i=0,len=limit.length;i<len;i++) {
-						if (fn(data[limit[i]])) {
-							r.push(limit[i]);
-						}
-					}
-				} else {
-					for (i in data) {
-						if (fn(data[i])) {
-							r.push(i);
-						}
-					}
-				}
-				return(r);
-			};
+		query : function(where) {
 			return(this.executeQuery(where,index,foreach));
 		}
 		
