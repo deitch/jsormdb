@@ -380,13 +380,19 @@ function getTest(Y) {
 			var test=this, db, db;
 			cb = function() {
 				test.resume(function(){
+					r = db.find();
+					Y.Assert.areEqual(10,r.length,"Before changes should have 10 entries");
 					db.update({data: {age: 30}, where: {field: "age",compare:"gt",value:23}});
+					r = db.find();
+					Y.Assert.areEqual(10,r.length,"After update should have 10 entries");
 					db.insert(newval);
 					r = db.find({where: {field: "age", compare: "equals", value: 60}});
 					Y.Assert.areEqual(1,r.length,"Before reject should have one at age 60");
 					r = db.find();
-					Y.Assert.areEqual(10,r.length,"Before reject should have 10 entries");
+					Y.Assert.areEqual(15,r.length,"Before reject should have 15 entries");
 					db.reject(1);
+					r = db.find();
+					Y.Assert.areEqual(10,r.length,"After reject should have 10 entries");
 					r = db.find({where: {field: "age", compare: "equals", value: 60}});
 					Y.Assert.areEqual(0,r.length,"After reject of insert but not update should have none at age 60");
 				});

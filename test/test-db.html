@@ -1,29 +1,28 @@
 <html>
 	<head>
 		<title>Test Page for jsormdb</title>
-    	<link rel="stylesheet" type="text/css" href="../../yui_3.0.0.pr2/assets/yui.css">
 		<style>
 			#results {position: static;}
 			#control {text-align: left;}
 			body > div {margin: 10px;}
 		</style>
-		<script src="../../yui_3.0.0.pr2/build/yui/yui-min.js" type="text/javascript"></script> 
+		<script src="http://yui.yahooapis.com/3.5.1/build/yui/yui-min.js"></script> 
 		<script src="../build/jsormdb-src.js"></script>
 		<script src="test-db.js"></script>
 		<script type="text/javascript">
-			var local = true;
+			var local = false;
 			var conf = {
 				base: '../../yui_3.0.0.pr2/build/'
 			};
-			var Y = YUI(local?conf:null).use("yuitest","console",function(Y) {
+			var Y = YUI(local?conf:null).use("test","test-console",function(Y) {
 				var i, yconsole, test, re, tests = [], enabled, enString, table, tr, button, allSelect = false;
 				Y.config.useBrowserConsole = false;
-				yconsole = new Y.Console({ 
+				yconsole = new Y.Test.Console({ 
 					boundingBox: '#results',
 					newestOnTop: false                    
 				}).render();
 				// now that it is loaded, set the callback and enable the button
-				button = Y.get('#button1');
+				button = Y.one('#button1');
 				button.on('click',function(){
 					yconsole.reset();
 					Y.Test.Runner.run();	
@@ -43,7 +42,7 @@
 					}
 				}
 				// for each test, mark as disabled if ignore is true, enabled if not true or missing
-				table = Y.get("#testTable");
+				table = Y.one("#testTable");
 				if (table) {
 					for (i=0; i<tests.length; i++) {
 						if (test._should.ignore.hasOwnProperty(tests[i])) {
@@ -57,7 +56,7 @@
 						enString = enabled ? "checked=\"checked\"" : "";
 						tr = Y.Node.create("<tr><td>"+tests[i]+"</td><td><input type=\"checkbox\" "+enString+" </td></tr>");
 						// add the event handler
-						tr.query('input').on('click',function(key,tr){
+						tr.all('input').on('click',function(key,tr){
 							return function() {
 								var checked = tr.query('input').get('checked');
 								test._should.ignore[key] = !checked;
@@ -79,11 +78,11 @@
 				
 				// add the test suite
 				Y.Test.Runner.add(test);
-			});				
+			});	
 			
 		</script>
 	</head>
-	<body class=" yui-skin-sam">
+	<body class=" yui3-skin-sam">
 		<h1>Database Tests</h1>
 		<div id="control">
 			<table id="testTable">
