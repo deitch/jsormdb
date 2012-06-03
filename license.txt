@@ -1,5 +1,5 @@
 JSorm Library
-Copyright (c) ATOMIC Inc 2007-2008
+Copyright (c) ATOMIC Inc 2007-2012
 Terms of Use
 License
 -------

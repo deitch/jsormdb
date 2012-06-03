@@ -43,14 +43,6 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		'beforewrite','write','writeexception','commit', 'commitexception');
 
 	/*
-	 * START legacy event management stuff from when this was based upon Ext.ux.WriteStore
-	 */
-    //this.relayEvents(channel, ["updateexception"]);
-	/*
-	 * END legacy event management stuff from when this was based upon Ext.ux.WriteStore
-	 */
-
-	/*
 	 * BEGIN PRIVATE FUNCTIONS
 	 */
 

@@ -27,6 +27,15 @@ committed. Rejection rolls back all changes since the last commit, or since the 
 commits all changes since the last commit, or since the initial load. Additionally, commit sends changes
 back to the server via ajax, if so configured. 
 
+4) Build
+If you wish to build and/or test on your own, you can do so. 
+
+jake cleanbuild
+
+will do it. You must have the following installed on your system to build:
+- node
+- npm packages: jsmin, rimraf, underscore,jake (all inside package.json)
+
 Please see the wiki at http://jsorm.com/wiki for additional details.
 
 

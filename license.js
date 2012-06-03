@@ -1,5 +1,5 @@
 /*
- * Copyright © Atomic Inc 2007-2009
+ * Copyright © Atomic Inc 2007-2012
  * http://jsorm.com
  *
  * This file contains work that is copyrighted and is distributed under one of several licenses. 
