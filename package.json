@@ -1,10 +1,15 @@
 {
   "name":"jsormdb",
+	"description": "A JavaScript library for embedded database with persistence to the server or other stores",
+	"url": "http://github.com/deitch/jsormdb",
+	"author": "Avi Deitcher <avi@deitcher.net>",
   "version":"1.3.1b",
   "engines":{
-    "node":"0.6.12",
+    "node":">=0.6",
     "npm":"1.1.4"
   },
+	"main": "./lib/jsormdb.js",
+	"test": "./test/test-db.html",
   "dependencies": {
   },
   "devDependencies": {
@@ -12,6 +17,9 @@
     "rimraf":">=2.0.1",
     "jake":">=0.2.33",
     "jsmin":">=1.0.1"
-  }
+  },
+	"repository": {
+		"type" : "git",
+		"url" : "http://github.com/deitch/jsormdb.git"
+	}
 }
-
