@@ -5,7 +5,7 @@
  * Created by Avi Deitcher < avi@jsorm.com >
  */
 
-var src = "./src", lib = "./lib", sample = "./sample", license = "./license.js",
+var src = "./src", lib = "./lib", sample = "./sample", test = "./test", license = "./license.js",
   jsormBase = "../jsormutil/dist/jsorm-1.3-min-nolicense.js", basename = "jsormdb", testHtml = "test/test.html",
   concat, cp, replace, nodify,
   fs = require('fs'), rimraf = require('rimraf'), jsmin = require('jsmin').jsmin, _ = require('underscore'), path = require('path'),
@@ -50,7 +50,7 @@ replace = function(fileList,pattern,replace) {
 desc('Clean everything out and rebuild');
 task('cleanbuild',['clean','build']);
 
-desc('Build the concatenated source file and minified source');
+desc('Build the concatenated source file, minified source, and node-ready lib');
 task('build',['init'],function(){
   var srcCode, licenseCode, srcFiles, baseFile = lib+"/"+basename+"-src.js", minFile = lib+"/"+basename+".js";
 
@@ -59,8 +59,7 @@ task('build',['init'],function(){
   });
   
   concat([
-      license,
-      jsormBase
+      license
     ].concat(srcFiles),baseFile);
   nodify(baseFile,"JSORM");
 	
@@ -74,6 +73,7 @@ task('build',['init'],function(){
 	
 	cp(minFile,sample+"/"+basename+".js");
 	cp(baseFile,sample+"/"+basename+"-src.js");
+	
 });
 
 
