@@ -2,18 +2,18 @@
  * @author adeitcher
  * @fileOverview Storage engines for jsormdb. Currently only supports in-memory array and in-memory hash
  */
-/*global JSORM */
+/*global j, JSORM */
 
 
 /** 
  * @namespace Container for all engine components, and parent for included engines
  */
-JSORM.db.engine = function(){
-	var apply = JSORM.apply, clone = JSORM.clone;
-	var compares, pass1, pass2, pass3, intersection, union, keysAsArray, isPrimitive, isCompound;
+j.db.engine = (function(){
+	var apply = JSORM.apply, clone = JSORM.clone,
+	compares, pass1, pass2, pass3, intersection, union, keysAsArray, isPrimitive, isCompound;
 	
 	compares = {
-		equals: function(name,val) {return(function(entry){return(entry[name]===val);});},
+		equals: function(name,val) {return function(entry){return(entry[name]===val);};},
 		"in": function(name,val) {
 				var h, ret;
 				if (val.isArray) {h=val.hasher(); ret = function(entry){return(h.hasOwnProperty(entry[name]));};}
@@ -41,15 +41,15 @@ JSORM.db.engine = function(){
 		contains: function(name,val) {
 				return(typeof(val) === "string" ? function(entry){return(entry[name].indexOf(val) >= 0);} : null);
 			},
-		isnull: function(name,val) {return(function(entry){return(entry[name]===null);});},
-		notnull: function(name,val) {return(function(entry){return(entry[name]!==null);});}
+		isnull: function(name,val) {return function(entry){return(entry[name]===null);};},
+		notnull: function(name,val) {return function(entry){return(entry[name]!==null);};}
 	};	
 
 	intersection = function() {
 		var result,i,len,o;
 		if (!arguments || arguments.length<1) {
 			result = {};
-		} else if (arguments.length == 1 && typeof(arguments[0]) === "object") {
+		} else if (arguments.length === 1 && typeof(arguments[0]) === "object") {
 			result = arguments[0];
 		} else {
 			result = arguments[0].isArray ? arguments[0].hasher() : arguments[0];
@@ -78,7 +78,7 @@ JSORM.db.engine = function(){
 	keysAsArray = function(o) {
 		var i, r = [];
 		for (i in o) {
-			if (i && o.hasOwnProperty(i) && typeof(o[i]) !== "function") {r.push(i);}
+			if (o.hasOwnProperty(i) && i && typeof(o[i]) !== "function") {r.push(i);}
 		}		
 		return(r);
 	};
@@ -115,8 +115,8 @@ JSORM.db.engine = function(){
 				}
 		} else if (isCompound(where)) {
 			// is it a compound?
-			r = {join: where.join, terms:[], fn:[],comps:[]}
-			if (where.type) {r.type = where.type};
+			r = {join: where.join, terms:[], fn:[],comps:[]};
+			if (where.type) {r.type = where.type;}
 			for (i=0, len=where.terms.length; i<len; i++) {
 				r2 = pass1(where.terms[i],index);
 				// determine if it is a list of indexes, or a function
@@ -152,20 +152,20 @@ JSORM.db.engine = function(){
 		
 		/*
 		 * How does this work? Everything passed will be like a compound.
-		 * 		A: join AND: 
-		 * 				1) take the intersection of any earlier terms
-		 * 				2) take those results, and feed each one into each function. Those for which every function returns 
-		 * 					true, we keep; others are discarded
-		 * 				3) take those results, and use them as a limit. Feed those as the limiting factor into 
-		 * 					each sub-compound
-		 * 			Any that survive all three steps are valid.
-		 * 		B: join OR:
-		 * 				1) take the union of any earlier terms
-		 * 				2) take the limit, or the entire data set, and feed each one into each function. Those for which any
-		 * 					function returns true, we keep; others are discarded
-		 * 				3) take the limit, or the entire data set, and feed each one into each sub-compound. Union the results
-		 * 					of each compound into the total set.
-		 * 			Any that survive any one step are valid.
+		 *  A: join AND: 
+		 *    1) take the intersection of any earlier terms
+		 *    2) take those results, and feed each one into each function. Those for which every function returns 
+		 *      true, we keep; others are discarded
+		 *    3) take those results, and use them as a limit. Feed those as the limiting factor into 
+		 *      each sub-compound
+		 *      Any that survive all three steps are valid.
+		 *  B: join OR:
+		 *    1) take the union of any earlier terms
+		 *    2) take the limit, or the entire data set, and feed each one into each function. Those for which any
+		 *      function returns true, we keep; others are discarded
+		 *    3) take the limit, or the entire data set, and feed each one into each sub-compound. Union the results
+		 *      of each compound into the total set.
+		 *    Any that survive any one step are valid.
 		 */
 		// is there a type limit?
 		if (where.type) {
@@ -320,19 +320,18 @@ JSORM.db.engine = function(){
 		}		
 	};
 	
-}();
+}());
 
 /** 
  * Create new JSORM.db.engine.array.
  * @class Array-based in-memory storage engine.<br/>
  * Note: array engine does not support indexing
  */
-JSORM.db.engine.array = JSORM.extend(JSORM.db.engine,function() {
+j.db.engine.array = JSORM.extend(j.db.engine,function() {
 	this.type = "array";
-	var data = [], index = null;
-	var apply = JSORM.apply;
+	var data = [], index = null, apply = JSORM.apply, foreach;
 	// the looping function
-	var foreach = function(fn,limit) {
+	foreach = function(fn,limit) {
 		var i, len, r = [];
 		if (limit && limit.isArray)  {
 			for (i=0,len=limit.length;i<len;i++) {
@@ -491,13 +490,12 @@ JSORM.db.engine.array = JSORM.extend(JSORM.db.engine,function() {
  * @param {Object} index A pre-constructed index to use for this table storage engine. If none is passed, use the default
  *    JSORM.db.index.hash.
  */
-JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
+j.db.engine.hash = JSORM.extend(j.db.engine,function(index) {
 	this.type = "hash";
-	var data = {}, length = 0, max = 0, unused = [];
-	var apply = JSORM.apply; 
-	index = index || JSORM.db.index.hash();
+	var data = {}, length = 0, max = 0, unused = [], apply = JSORM.apply, foreach; 
+	index = index || j.db.index.hash();
 
-	var foreach = function(fn,limit) {
+	foreach = function(fn,limit) {
 		var i,len,r = [];
 		if (limit) {
 			for (i=0,len=limit.length;i<len;i++) {
@@ -507,7 +505,7 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 			}
 		} else {
 			for (i in data) {
-				if (fn(data[i])) {
+				if (data.hasOwnProperty(i) && fn(data[i])) {
 					r.push(i);
 				}
 			}
@@ -515,7 +513,7 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 		return(r);
 	};
 
-	apply(this,/** lends JSORM.db.engine.hash.prototype */{
+	apply(this,/** lends j.db.engine.hash.prototype */{
 		/**
 		 * Determine how many records are in the database. Equivalent of "select count(index)"
 		 * 
@@ -605,7 +603,7 @@ JSORM.db.engine.hash = JSORM.extend(JSORM.db.engine,function(index) {
 				// need to return as an array
 				ret = [];
 				for (i in data) {
-					if (i && typeof(i) !== "function" && typeof(data[i]) === "object") {ret.push(data[i]);}
+					if (data.hasOwnProperty(i) && i && typeof(i) !== "function" && typeof(data[i]) === "object") {ret.push(data[i]);}
 				}
 			} else if (idx && idx.isArray) {
 				ret = [];

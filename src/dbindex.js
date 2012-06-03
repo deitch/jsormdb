@@ -2,7 +2,7 @@
  * @author adeitcher
  * @fileOverview Indexes for jsormdb. Currently provides only in-memory hash
  */
-/*global JSORM */
+/*global j, JSORM */
 
 /** 
 * Create new JSORM.db.index.hash
@@ -10,7 +10,7 @@
  * 
  * @param {String|String[]} fields Single name of field or array of field names to initially index. Can be changed later.
  */
-JSORM.db.index.hash = JSORM.extend({},function(f) {
+j.db.index.hash = JSORM.extend({},function(f) {
 	this.type = "hash";
 	var fields = 0, data = {};
 	
@@ -120,9 +120,9 @@ JSORM.db.index.hash = JSORM.extend({},function(f) {
 		 * <li>nomatch - able to perform the query, but found no matches, hence return an empty array</li>
 		 * <li>noquery - unable to perform the query because one or more of the following is true:
 		 *   <ul>
-		 * 		<li>The query type compares clause is not indexable by this index, e.g. "contains"</li>
-		 * 		<li>The query type is invalid or not a primitive</li>
-		 * 		<li>The query type field is not indexed</li>
+		 *    <li>The query type compares clause is not indexable by this index, e.g. "contains"</li>
+		 *    <li>The query type is invalid or not a primitive</li>
+		 *    <li>The query type field is not indexed</li>
 		 * </ul>
 		 * For example, a match returns an array [1,5,789]; nomatch returns an empty array []; noquery returns null. 
 		 * 
@@ -151,7 +151,7 @@ JSORM.db.index.hash = JSORM.extend({},function(f) {
 			var i, field;
 			// check each field if it is indexed
 			for (i in newdata) {
-				if (newdata.hasOwnProperty(i) && data.hasOwnProperty(i) && (field = data[i]) && old[i] != newdata[i]) {
+				if (newdata.hasOwnProperty(i) && data.hasOwnProperty(i) && (field = data[i]) && old[i] !== newdata[i]) {
 					// if the field is indexed, change the value for a particular index. Here it is indexed,
 					//  so we remove the index from the old value and add it to the new
 					field[old[i]].remove(index);

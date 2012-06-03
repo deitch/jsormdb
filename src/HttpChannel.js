@@ -2,7 +2,7 @@
  * @author Avi Deitcher
  * @fileOverview Channel to read/write from an HTTP server
  */
-/*global JSORM */
+/*global j, JSORM */
 
 /**
  * Create new HTTP channel
@@ -13,19 +13,19 @@
  * @param {String} config.loadUrl URL to use for loading. If it begins with '/', then absolute, else relative.
  * @param {String} config.updateUrl URL to use for updating. If it begins with '/', then absolute, else relative.
  */
-JSORM.db.channel.http = JSORM.extend({}, function(config){
+j.db.channel.http = JSORM.extend({}, function(config){
 	config = config || {};
 	// convenience
-	var ajax = JSORM.ajax, fork = JSORM.fork, that = this;
+	var ajax = JSORM.ajax, fork = JSORM.fork, that = this, processResponse, updateResponse, loadResponse, message,
 	
 	// our URLs; if only one url is given, use it for both
-	var loadUrl = config.loadUrl || config.url, updateUrl = config.updateUrl || config.url;
+	loadUrl = config.loadUrl || config.url, updateUrl = config.updateUrl || config.url;
 
 	// create event-handling
 	JSORM.eventualize(this);
 	this.events('beforeupdate','update','updateexception','beforeload','load','loadexception');
 
-	var processResponse = function(eSuccess, eFailure, filename, xhr, success, o) {
+	processResponse = function(eSuccess, eFailure, filename, xhr, success, o) {
 		var e, a, s, ct, ct2, res;
 		if (success) {
 			e = eSuccess; a = o.options; s = true;
@@ -40,18 +40,18 @@ JSORM.db.channel.http = JSORM.extend({}, function(config){
 		o.callback.call(o.scope,{options: o.arg, success: s, response: res});		
 	};
 	
-	var updateResponse = function(filename, xhr, success, o){
+	updateResponse = function(filename, xhr, success, o){
 		processResponse("update","updateexception",filename,xhr,success,o);
 	};
 
-	var loadResponse = function(filename, xhr, success, o){
+	loadResponse = function(filename, xhr, success, o){
 		processResponse("load","loadexception",filename,xhr,success,o);
 	};
 	
-	var message = function(beforeevent, arg, callback, method, url) {
-		var params = arg.params, cb = arg.callback, scope = arg.scope, options = arg.options;
+	message = function(beforeevent, arg, callback, method, url) {
+		var params = arg.params, cb = arg.callback, scope = arg.scope, options = arg.options, o;
         if(that.fire("beforeevent", params) !== false){
-            var  o = {
+            o = {
                 params : params || {},
                 options: {
                     callback : cb,
@@ -76,8 +76,8 @@ JSORM.db.channel.http = JSORM.extend({}, function(config){
 		 * 
 		 * @param {Object} [config] Configuration information for the update
 		 * @param {Object} [config.params] Parameters to add to the update. Each element is given as a parameter name to the HTTP
-		 * 			PUT, while the values are expected to be Strings given as the value of HTTP parameter 
-		 * @param {Function} [config.callback] Function to be executed when the update is complete, whether success or failure.
+     *    PUT, while the values are expected to be Strings given as the value of HTTP parameter 
+     * @param {Function} [config.callback] Function to be executed when the update is complete, whether success or failure.
 		 *   The callback should expect a single argument, an object, with the following elements:
 		 *    <ul>
 		 *     <li>success: boolean as to whether or not the update succeeded</li>
@@ -96,7 +96,7 @@ JSORM.db.channel.http = JSORM.extend({}, function(config){
 		 * 
 		 * @param {Object} [config] Configuration information for the load
 		 * @param {Object} [config.params] Parameters to add to the load. Each element is given as a parameter name to the HTTP
-		 * 			GET, while the values are expected to be Strings given as the value of HTTP parameter 
+		 *  GET, while the values are expected to be Strings given as the value of HTTP parameter 
 		 * @param {Function} [config.callback] Function to be executed when the load is complete, whether success or failure.
 		 *   The callback should expect a single argument, an object, with the following elements:
 		 *    <ul>

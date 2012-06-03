@@ -4,7 +4,7 @@
  * the database must have a parser for other conversions, e.g. JSON and XML, we need an object parser as well, especially
  * when the channel talks to some other object generator.
  */
-/*global JSORM */
+/*global JSORM, j */
 
 /**
  * Create a new object parser
@@ -13,7 +13,7 @@
  * the database must have a parser for other conversions, e.g. JSON and XML, we need an object parser as well, especially
  * when the channel talks to some other object generator.
  */
-JSORM.db.parser.object = JSORM.extend({}, function(){
+j.db.parser.object = JSORM.extend({}, function(){
 	var clone = JSORM.clone;
 	
 	JSORM.apply(this,/** @lends JSORM.db.parser.object.prototype */{

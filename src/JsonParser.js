@@ -2,7 +2,7 @@
  * @author Avi Deitcher
  * @fileOverview JSON Parser to convert JSON into objects suitable for jsormdb and vice-versa
  */
-/*global JSORM */
+/*global JSORM, j */
 /**
  * Create a new JSON parser
  * @class Parser to convert JSON into objects when loaded from a channel and vice-versa
@@ -11,7 +11,7 @@
  * @param {String} [config.id] Default field to use as the unique identifier field in parsed data
  * @param {String} [config.root] Default element to use as the root of actual records in parsed data
  */
-JSORM.db.parser.json = JSORM.extend({}, function(config){
+j.db.parser.json = JSORM.extend({}, function(config){
 	config = config || {};
 	var id = config.id, root = config.root, lastMeta = {}, lastRoot = {};
 	
@@ -58,12 +58,12 @@ JSORM.db.parser.json = JSORM.extend({}, function(config){
 		 */
 		write : function(records) {
 			// hold our new structure
-			var obj = {};
+			var obj = {}, j;
 			obj[lastRoot] = records;
 			if (lastMeta) {
 				obj.meta = lastMeta;
 			}
-			var j = JSON.stringify(obj);
+			j = JSON.stringify(obj);
 			if (!j) {throw{message: "JsonParser.write: unable to encode records into Json"};}
 			return(j);
 		}		

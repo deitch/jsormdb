@@ -3,7 +3,7 @@
  * to server-side, and much much more
  * @author adeitcher
  */
-/*global JSORM */
+/*global JSORM, j */
 
 /** 
  * @constructor
@@ -14,24 +14,25 @@
  * @param {Object} [config.updateParams] Object literal with parameters to pass to the channel for each commit(), by default
  * @param {Object} [config.loadParams] Object literal with parameters to pass to the channel for each load(), by default
  */
-JSORM.db.db = JSORM.extend({},	function(config) {
+j.db.db = JSORM.extend({},	function(config) {
 	// ensure config is an object for convenience
 	config = config || {};
 
 	// convenience definitions
-	var clone = JSORM.clone, common=JSORM.common, apply=JSORM.apply, fork = JSORM.fork, first=JSORM.first;
+	var clone = JSORM.clone, common=JSORM.common, apply=JSORM.apply, fork = JSORM.fork, first=JSORM.first,
 	
-	var journal = [], channel = config.channel || null, idField, myclass = this.myclass;
+	journal = [], channel = config.channel || null, idField, myclass = this.myclass,
 	// updateMode, writeMode
-	var updateMode = config.updateMode || myclass.updates.nothing, writeMode = config.writeMode || myclass.modes.nothing;
+	updateMode = config.updateMode || myclass.updates.nothing, writeMode = config.writeMode || myclass.modes.nothing,
 	// we automatically use "type" as an indexed field
-	var store = JSORM.db.engine.hash(JSORM.db.index.hash("type"));
+	store = j.db.engine.hash(j.db.index.hash("type")),
 	// default writeMode, updateMode
-	var defaultWriteMode = myclass.modes.nothing, defaultUpdateMode = myclass.updates.nothing;
+	defaultWriteMode = myclass.modes.nothing, defaultUpdateMode = myclass.updates.nothing,
 	// do we have a parser?
-	var parser = config.parser || JSORM.db.parser.json();
+	parser = config.parser || j.db.parser.json(),
 	// params
-	var updateParams = config.updateParams || {}, loadParams = config.loadParams || {};
+	updateParams = config.updateParams || {}, loadParams = config.loadParams || {}, 
+	findInternal, clearInternal, loadData, loadCallback, removeAt, write, writeCallback;
 
 
 	// create event-handling
@@ -49,7 +50,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 	/**
 	 * Internal search function, returns the index
 	 */
-	var findInternal = function(args) {
+	findInternal = function(args) {
 		var ret = null, i, len, query, idx, data;
 		
 		// query the store
@@ -71,7 +72,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		return(ret);
 	};
 	
-	var clearInternal = function(log) {
+	clearInternal = function(log) {
 		// log the event in the journal, unless suppressed
 		if (log) {
 			journal.push({type: myclass.types.clear, data: store.get()});
@@ -81,7 +82,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		store.clear();
 	};
 
-	var loadData = function(data) {
+	loadData = function(data) {
 		var r = data.records;
 		clearInternal(false);
 		idField = data.id || "id";
@@ -101,9 +102,9 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 	 * 2) Do the load
 	 * 3) Start a new transaction journal
 	 */
-	var loadCallback = function(args){
-		var options = args.options || {}, r = [], parsed, processed = false;
-		var e, sfcb, cb = args.callback, scope = args.scope || this;
+	loadCallback = function(args){
+		var options = args.options || {}, r = [], parsed, processed = false,
+		e, sfcb, cb = args.callback, scope = args.scope || this;
 
 		// only clear and load if we successfully get and parse the data
 		if (args.success && (parsed = parser.read(args.response))) {
@@ -134,7 +135,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		}
 	};
 
-    var removeAt = function(index){
+  removeAt = function(index){
 		var i,len, removed = [], entry;
 		index = [].concat(index);
 		for (i=0,len=index.length;i<len;i++) {
@@ -142,9 +143,9 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 			removed.push(entry);
 		}
 		return(removed);
-    };
+  };
 
-	var write = function(mode) {
+	write = function(mode) {
 		var data, tmp, i, len, j, lenj, recs = {}, entry, den, curId, condensed, orig;
 
 		// replace mode just dumps it all
@@ -250,13 +251,13 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 	 * @success boolean whether the write succeeded or not
 	 * @response String full contents of response from the server
 	 */	
-	var writeCallback = function(args) {
+	writeCallback = function(args) {
 		// if the POST worked, i.e. we reached the server and found the processing URL,
 		// which handled the processing and responded, AND the processing itself succeeded,
 		// then success, else exception
-		var i, len, response = args.response, o = args.options || {}, update;
-		var r = [], e, sfcb, cb = o.callback, scope = o.scope || this, options = o.options;
-		var newRec, where, index;
+		var i, len, response = args.response, o = args.options || {}, update,
+		r = [], e, sfcb, cb = o.callback, scope = o.scope || this, options = o.options,
+		newRec, where, index;
 
 		// the expectation for success is that the application itself will determine it
 		//  via a 'write' handler
@@ -475,12 +476,10 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		 * @param {Object} [params.where] Search term, either primitive or composite, to determine which records to remove.
 		 */
 	    remove : function(params){
-			var args = params || {};
-	        var index = findInternal({where: args.where, index: true});
-			var removed = removeAt(index);
+			var args = params || {}, index = findInternal({where: args.where, index: true}), removed = removeAt(index);
 			// mark the record itself as having been deleted, so we can know if we commit it
 			journal.push({type: myclass.types.remove, data: removed});
-	    	this.fire("remove", {records: removed});
+        this.fire("remove", {records: removed});
 	    },
 
 		/**
@@ -575,7 +574,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 		 */
 	    reject : function(count){
 			// are we rejecting all or some?
-			var start = 0, index, data, type, i, j, len, lenj, orig;
+			var start = 0, index, data, type, i, j, len, lenj, orig, m;
 			if (!count || count > journal.length) {
 				count = journal.length;
 				start = 0;
@@ -585,7 +584,7 @@ JSORM.db.db = JSORM.extend({},	function(config) {
 
 			// back out the last 'count' changes in reverse order
 			// get the last 'count' elements of the journal
-			var m = journal.splice(start,count).reverse();
+			m = journal.splice(start,count).reverse();
 			for (i=0, len=m.length; i<len; i++) {
 				index = m[i].index; data = m[i].data; type = m[i].type;
 				switch(type) {
