@@ -79,7 +79,7 @@ task('build',['init'],function(){
 
 desc('set things up for the build');
 task('init',[],function(){
-  if (!path.existsSync(lib)) {
+  if (!fs.existsSync(lib)) {
     fs.mkdirSync(lib);
   }
 });
